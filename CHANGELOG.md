@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.124.0](https://github.com/jpe-ansible/ansible-splunk/compare/v0.123.2...v0.124.0) (2026-11-22)
+
+
+### Features
+
+* **agents:** keep user-facing Splunk content out of this repository ([dda74eb](https://github.com/jpe-ansible/ansible-splunk/commit/dda74eb2c535ece02a086f62064ba600af246175))
+* **agents:** keep user-facing Splunk content out of this repository ([#918](https://github.com/jpe-ansible/ansible-splunk/issues/918)) ([4ab945f](https://github.com/jpe-ansible/ansible-splunk/commit/4ab945f5e59b13b55bb0cf29a2398b8b13b4b565))
+
 ## [0.123.2](https://github.com/jpe-ansible/ansible-splunk/compare/v0.123.1...v0.123.2) (2026-11-22)
 
 
