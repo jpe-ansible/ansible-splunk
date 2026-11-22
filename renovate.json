@@ -1,4 +1,16 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["github>JacobPEvans/.github"]
+  "extends": [
+    "github>JacobPEvans/.github"
+  ],
+  "packageRules": [
+    {
+      "description": "Classify splunk-homelab-alerts pin updates as fixes so Release Please releases the deploy.",
+      "matchPackageNames": [
+        "dryvist/splunk-homelab-alerts"
+      ],
+      "semanticCommitType": "fix",
+      "semanticCommitScope": "deps"
+    }
+  ]
 }
