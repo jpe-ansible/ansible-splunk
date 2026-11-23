@@ -103,6 +103,11 @@ splunk_docker_addons:
     github_repo: JacobPEvans-personal/VisiCore_App_for_AI_Observability
   - filename: splunk-homelab-alerts.tar
     app_dir: splunk-homelab-alerts
-    github_repo: dryvist/splunk-homelab-alerts
-    # renovate: datasource=github-releases depName=dryvist/splunk-homelab-alerts
+    github_repo: JacobPEvans/splunk-homelab-alerts
+    # renovate: datasource=github-releases depName=JacobPEvans/splunk-homelab-alerts
     pin_version: "v0.29.0"
+  - filename: splunk-homelab-dashboards.tar
+    app_dir: splunk-homelab-dashboards
+    github_repo: JacobPEvans/splunk-homelab-dashboards
+    # renovate: datasource=github-releases depName=JacobPEvans/splunk-homelab-dashboards
+    pin_version: "v0.2.0"

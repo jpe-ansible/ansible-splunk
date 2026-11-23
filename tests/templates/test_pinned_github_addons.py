@@ -37,7 +37,7 @@ if not re.fullmatch(r"v\d+\.\d+\.\d+", str(entry.get("pin_version", ""))):
     errors.append(f"FAIL: splunk-homelab-alerts needs a pin_version release tag (found {entry.get('pin_version')!r})")
 
 # Renovate reads the pin from the annotation on the line directly above it.
-annotation = "# renovate: datasource=github-releases depName=dryvist/splunk-homelab-alerts"
+annotation = "# renovate: datasource=github-releases depName=JacobPEvans/splunk-homelab-alerts"
 if not re.search(rf"^\s*{re.escape(annotation)}\n\s*pin_version:", registry_text, re.M):
     errors.append("FAIL: pin_version lacks the Renovate annotation on the line above it")
 
