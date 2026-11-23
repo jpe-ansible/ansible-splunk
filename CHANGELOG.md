@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.125.0](https://github.com/jpe-ansible/ansible-splunk/compare/v0.124.1...v0.125.0) (2026-11-23)
+
+
+### Features
+
+* **addons:** install the homelab dashboards app from its release ([#924](https://github.com/jpe-ansible/ansible-splunk/issues/924)) ([50b7063](https://github.com/jpe-ansible/ansible-splunk/commit/50b706383048d1f54497c95d1b852a1177d0042c))
+
 ## [0.124.1](https://github.com/jpe-ansible/ansible-splunk/compare/v0.124.0...v0.124.1) (2026-11-22)
 
 
