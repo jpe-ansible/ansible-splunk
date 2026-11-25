@@ -82,6 +82,17 @@ contracts = {
             "| where pct_used >= 85",
         ),
     },
+    "splunk_licence_daily_pace": {
+        "severity": "5",
+        "digest": True,
+        "search": (
+            "| rest splunk_server=local /services/licenser/pools",
+            "| stats sum(used_bytes) as used_bytes",
+            'relative_time(now(), "@d")',
+            "projected_gb=round(used_bytes*86400/elapsed/1073741824,2)",
+            "| where used_gb >= 8 OR (elapsed >= 14400 AND projected_gb >= 9.5)",
+        ),
+    },
 }
 
 errors = []
@@ -138,6 +149,6 @@ if errors:
     sys.exit(1)
 
 print(
-    "PASS: all three rendered capacity alerts have the requested search, time window, "
+    "PASS: all four rendered capacity alerts have the requested search, time window, "
     "severity, suppression, count rule and delivery"
 )
