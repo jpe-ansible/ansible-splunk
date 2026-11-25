@@ -88,9 +88,10 @@ contracts = {
         "search": (
             "| rest splunk_server=local /services/licenser/pools",
             "| stats sum(used_bytes) as used_bytes",
-            'relative_time(now(), "@d")',
-            "projected_gb=round(used_bytes*86400/elapsed/1073741824,2)",
-            "| where used_gb >= 8 OR (elapsed >= 14400 AND projected_gb >= 9.5)",
+            "earliest=-60m | stats sum(b) as last_hour_bytes]",
+            'remaining=86400-(now()-relative_time(now(), "@d"))',
+            "projected_gb=round((used_bytes+coalesce(last_hour_bytes,0)*remaining/3600)/1073741824,2)",
+            "| where used_gb >= 8 OR projected_gb >= 9.5",
         ),
     },
 }
