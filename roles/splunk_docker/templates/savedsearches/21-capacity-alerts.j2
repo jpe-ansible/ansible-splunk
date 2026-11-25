@@ -72,12 +72,13 @@ quantity = 0
 
 [splunk_licence_daily_pace]
 {{ alert_delivery('splunk_licence_daily_pace', 5) -}}
-description = Fires when today's Splunk licence usage reaches 8 GB, or projects to 9.5 GB or more after the first four hours of the day.
+description = Fires when today's Splunk licence usage reaches 8 GB, or today's usage plus the last hour's rate over the rest of the day projects to 9.5 GB or more.
 search = | rest splunk_server=local /services/licenser/pools \
   | stats sum(used_bytes) as used_bytes \
-  | eval elapsed=now()-relative_time(now(), "@d") \
-  | eval used_gb=round(used_bytes/1073741824,2), projected_gb=round(used_bytes*86400/elapsed/1073741824,2) \
-  | where used_gb >= 8 OR (elapsed >= 14400 AND projected_gb >= 9.5)
+  | appendcols [search index=_internal source=*license_usage.log* type=Usage earliest=-60m | stats sum(b) as last_hour_bytes] \
+  | eval remaining=86400-(now()-relative_time(now(), "@d")) \
+  | eval used_gb=round(used_bytes/1073741824,2), projected_gb=round((used_bytes+coalesce(last_hour_bytes,0)*remaining/3600)/1073741824,2) \
+  | where used_gb >= 8 OR projected_gb >= 9.5
 dispatch.earliest_time = -15m
 dispatch.latest_time = now
 cron_schedule = */5 * * * *
