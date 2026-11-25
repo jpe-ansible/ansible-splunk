@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.126.1](https://github.com/jpe-ansible/ansible-splunk/compare/v0.126.0...v0.126.1) (2026-11-25)
+
+
+### Bug Fixes
+
+* **splunk_docker:** project the licence pace alert from the last hour's rate ([#932](https://github.com/jpe-ansible/ansible-splunk/issues/932)) ([e2a7e96](https://github.com/jpe-ansible/ansible-splunk/commit/e2a7e9624dae4b870b8c6bb20ac691169a9eb6ce))
+
 ## [0.126.0](https://github.com/jpe-ansible/ansible-splunk/compare/v0.125.0...v0.126.0) (2026-11-25)
 
 
