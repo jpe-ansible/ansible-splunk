@@ -58,7 +58,8 @@ role turns off Splunkbase browsing and update checks, writes the Splunk
 instrumentation telemetry opt-out, disables the bundled mobile gateway, and
 skips installation of the cloud-only AI Assistant. The AI Assistant remains in
 the Splunkbase mirror registry. App-local disable overlays are removed when
-internet access is enabled.
+internet access is enabled. The role also sets `PYTHONHTTPSVERIFY=1` in
+`etc/splunk-launch.conf` in both modes, replacing the image's insecure default.
 
 ## Technology Add-ons
 

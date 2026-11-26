@@ -59,3 +59,14 @@
     - Splunk_AI_Assistant_Cloud
   when: splunk_docker_allow_internet_access | bool
   notify: Restart Splunk container
+
+- name: Verify TLS for Splunk's Python runtime
+  ansible.builtin.lineinfile:
+    path: "{{ splunk_docker_etc_dir }}/splunk-launch.conf"
+    regexp: '^PYTHONHTTPSVERIFY='
+    line: PYTHONHTTPSVERIFY=1
+    create: true
+    owner: "{{ splunk_docker_user }}"
+    group: "{{ splunk_docker_group }}"
+    mode: '0644'
+  notify: Restart Splunk container
