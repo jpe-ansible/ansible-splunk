@@ -103,7 +103,7 @@ See [`roles/splunk_docker/files/README.md`](roles/splunk_docker/files/README.md)
 | `deploy_docker.yml` | Deploys Splunk container, assuming Docker is pre-installed |
 | `validate.yml` | Post-deploy validation: ports, HEC, web UI |
 | `configure_indexes.yml` | Index configuration only (idempotent) |
-| `sync-splunkbase.yml` | Mirrors the current Splunkbase package and optionally backfills Splunkbase/GitHub release history to object storage and publishes the manifest |
+| `sync-splunkbase.yml` | Mirrors current Splunkbase packages, and optionally their release history, to object storage; publishes the manifest |
 
 `sync-splunkbase.yml` keeps the current Splunkbase package at its version-free
 key for the air-gapped host. The historical release backfill is off by default.
