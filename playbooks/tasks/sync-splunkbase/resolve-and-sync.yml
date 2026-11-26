@@ -32,6 +32,7 @@
   loop_control:
     label: "{{ item.0.item.app_dir }} v{{ item.1.name | default('(unnamed)') }}"
   when:
+    - splunkbase_sync_release_history | bool
     - item.1 is mapping
     - item.1.name is defined
 
@@ -41,6 +42,7 @@
   loop_control:
     loop_var: github_release_entry
     label: "{{ github_release_entry.github_repo }}"
+  when: splunkbase_sync_release_history | bool
 
 - name: Initialize resolved release versions
   ansible.builtin.set_fact:
@@ -184,10 +186,12 @@
     label: "{{ item.app_dir }}/{{ item.version }}/{{ item.filename }}"
   vars:
     versioned_history_key: "{{ item.app_dir }}/{{ item.version }}/{{ item.filename }}"
+  when: splunkbase_sync_release_history | bool
 
 - name: Keep one plan entry per versioned object key
   ansible.builtin.set_fact:
     versioned_history_objects: "{{ versioned_history_objects | unique(attribute='history_key') | list }}"
+  when: splunkbase_sync_release_history | bool
 
 - name: Check whether each versioned release object already exists
   ansible.builtin.command:
@@ -210,6 +214,7 @@
   failed_when: false
   check_mode: false
   no_log: true
+  when: splunkbase_sync_release_history | bool
 
 - name: Validate versioned-object probes only report missing keys
   ansible.builtin.assert:
@@ -226,6 +231,7 @@
   loop: "{{ versioned_history_object_probes.results | default([]) }}"
   loop_control:
     label: "{{ item.item.history_key }}"
+  when: splunkbase_sync_release_history | bool
 
 - name: Add missing versioned release objects to the upload plan
   ansible.builtin.set_fact:
@@ -233,7 +239,9 @@
   loop: "{{ versioned_history_object_probes.results | default([]) }}"
   loop_control:
     label: "{{ item.item.history_key }}"
-  when: item.rc != 0
+  when:
+    - splunkbase_sync_release_history | bool
+    - item.rc != 0
 
 - name: Show sync decisions
   ansible.builtin.debug:

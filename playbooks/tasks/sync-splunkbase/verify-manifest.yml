@@ -126,4 +126,6 @@
   loop: "{{ splunkbase_history_versions_by_app | default([]) }}"
   loop_control:
     label: "{{ item.app_dir }}"
-  when: splunkbase_manifest_work_required | bool
+  when:
+    - splunkbase_sync_release_history | bool
+    - splunkbase_manifest_work_required | bool

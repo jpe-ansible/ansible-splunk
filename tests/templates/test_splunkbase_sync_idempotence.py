@@ -10,6 +10,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 TASKS = ROOT / "playbooks/tasks/sync-splunkbase/resolve-and-sync.yml"
 REGISTRY = ROOT / "roles/splunk_docker/vars/addons.yml"
+PLAYBOOK = ROOT / "playbooks/sync-splunkbase.yml"
 # The resolve/sync flow spans two task files (resolve-and-sync.yml imports
 # sync-and-publish.yml); Ansible resolves tasks across that boundary, so the
 # lookups below do too.
@@ -18,6 +19,77 @@ all_tasks = yaml.safe_load(TASKS.read_text()) + yaml.safe_load(
 )
 by_name = {task["name"]: task for task in all_tasks}
 errors = []
+
+
+def conditions(task):
+    when = task.get("when", [])
+    return [when] if isinstance(when, str) else when
+
+
+def has_history_gate(task):
+    return "splunkbase_sync_release_history | bool" in conditions(task)
+
+
+def passes_history_gate(task, enabled):
+    return enabled if has_history_gate(task) else True
+
+
+sync_play = next(
+    play for play in yaml.safe_load(PLAYBOOK.read_text())
+    if play.get("name") == "Mirror latest Splunkbase add-ons into object storage"
+)
+if sync_play["vars"].get("splunkbase_sync_release_history") is not False:
+    errors.append("FAIL: the release-history backfill must be disabled by default")
+
+history_task_names = [
+    "Add every listed Splunkbase release to the history catalogue",
+    "Add every GitHub release asset to the history catalogue",
+    "Build versioned release object keys",
+    "Keep one plan entry per versioned object key",
+    "Check whether each versioned release object already exists",
+    "Validate versioned-object probes only report missing keys",
+    "Add missing versioned release objects to the upload plan",
+    "Ensure temporary history download directory exists",
+    "Download missing versioned Splunkbase and GitHub releases",
+    "Log unavailable versioned releases and continue",
+    "Upload available versioned releases",
+    "Remove temporary versioned release downloads",
+    "Query versioned object keys for every mirrored app",
+    "Validate versioned object-key listings",
+    "Initialize the versioned key and release manifest indexes",
+    "Record versioned object keys for each app directory",
+    "Derive versions from versioned keys in object storage",
+    "Add version lists to the manifest",
+]
+for name in history_task_names:
+    if not has_history_gate(by_name[name]):
+        errors.append(f"FAIL: history-only task must be gated by the opt-in ({name})")
+
+history_verification = next(
+    task for task in yaml.safe_load(
+        (TASKS.parent / "verify-manifest.yml").read_text()
+    ) if task["name"] == "Verify published manifest contains every stored release version"
+)
+if not has_history_gate(history_verification):
+    errors.append("FAIL: history manifest verification must be gated by the opt-in")
+if history_verification.get("loop") != "{{ splunkbase_history_versions_by_app | default([]) }}":
+    errors.append("FAIL: disabled history verification must retain an empty-list loop default")
+
+history_tasks = [by_name[name] for name in history_task_names] + [history_verification]
+if any(passes_history_gate(task, False) for task in history_tasks):
+    errors.append("FAIL: disabled history tasks must not run")
+if not all(passes_history_gate(task, True) for task in history_tasks):
+    errors.append("FAIL: history tasks must remain enabled when the opt-in is true")
+
+candidate_init = by_name["Initialize the release history catalogue"]["ansible.builtin.set_fact"]
+history_plan_init = by_name["Initialize versioned release object plan"]["ansible.builtin.set_fact"]
+if candidate_init.get("release_history_candidates") != []:
+    errors.append("FAIL: the disabled history candidate list must initialize empty")
+if (
+    history_plan_init.get("versioned_history_objects") != []
+    or history_plan_init.get("release_history_to_upload") != []
+):
+    errors.append("FAIL: disabled versioned-object and upload plans must initialize empty")
 
 expected_unifi_apps = {
     9831: "TA_unifi_ng",
@@ -48,6 +120,26 @@ rendered_key = jinja2.Template(key_template).render(
 )
 if rendered_key != "sample_addon/1.2.3/package.tar":
     errors.append(f"FAIL: versioned object key rendered as {rendered_key!r}")
+
+history_download = by_name["Download missing versioned Splunkbase and GitHub releases"]
+if history_download.get("loop") != "{{ release_history_to_upload }}":
+    errors.append("FAIL: enabled history downloads must keep the resolved upload plan")
+history_upload = by_name["Upload available versioned releases"]
+if (
+    history_upload.get("loop")
+    != "{{ release_history_to_upload | zip(release_history_download_results.results | default([])) | list }}"
+    or "s3://{{ object_storage_bucket }}/{{ item.0.history_key }}"
+    not in history_upload["ansible.builtin.command"]["argv"]
+):
+    errors.append("FAIL: enabled history uploads must retain their versioned S3 keys")
+history_manifest = by_name["Derive versions from versioned keys in object storage"]
+if (
+    history_manifest.get("loop")
+    != "{{ versioned_history_key_queries.results | default([]) }}"
+    or "unique | sort | list"
+    not in history_manifest["ansible.builtin.set_fact"]["splunkbase_history_versions_by_app"]
+):
+    errors.append("FAIL: enabled history manifests must retain sorted release versions")
 
 nvidia_entries = [
     entry for entry in yaml.safe_load(REGISTRY.read_text())["splunk_docker_addons"]

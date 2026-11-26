@@ -1,11 +1,11 @@
 ---
-# Splunkbase/GitHub release-history sync — mirrors latest stable packages, all releases, and manifest
+# Splunkbase/GitHub release sync — mirrors latest stable packages, optional release history, and manifest
 #
 # Splunkbase entries resolve the latest release from the public API and keep the
-# version-free object key consumed by the air-gapped Splunk VM. Every downloadable
-# Splunkbase release and every matching GitHub release asset is also stored at
-# app_dir/version/filename. `manifest.json` retains the app_dir -> {version,
-# filename} mapping and lists sorted versioned releases for each mirrored app.
+# version-free object key consumed by the air-gapped Splunk VM. When enabled,
+# every downloadable Splunkbase release and matching GitHub release asset is
+# also stored at app_dir/version/filename. `manifest.json` retains the app_dir
+# -> {version, filename} mapping and lists sorted versioned releases per app.
 #
 # `pin_version` on an entry overrides resolution (hold back a bad release).
 #
@@ -40,6 +40,8 @@
   vars:
     splunkbase_api: "{{ splunkbase_api_url | default('https://splunkbase.splunk.com') }}"
     splunkbase_sync_tmpdir: /tmp/splunkbase-sync
+    # The backfill uploads every historical release, so enable it only after the object store has room for it.
+    splunkbase_sync_release_history: false
     object_storage_bucket: splunk-addons
     # aws reads credentials and the endpoint from the environment — nothing is
     # ever written to ~/.aws. The region is unused by the object store but the
