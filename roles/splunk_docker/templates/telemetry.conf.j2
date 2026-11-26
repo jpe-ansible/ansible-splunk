@@ -1,0 +1,15 @@
+{% if not splunk_docker_allow_internet_access %}
+# Splunk usage telemetry opt-out
+# Managed by the splunk_docker Ansible role
+
+[general]
+sendAnonymizedUsage = false
+sendLicenseUsage = false
+sendSupportUsage = false
+sendAnonymizedWebAnalytics = false
+precheckSendAnonymizedUsage = false
+precheckSendLicenseUsage = false
+precheckSendSupportUsage = false
+showOptInModal = false
+deprecatedConfig = false
+{% endif %}

@@ -51,6 +51,16 @@ The role keeps its runtime `inputs.conf`, `indexes.conf`, `server.conf`, and
 first created, it migrates only sections and keys rendered by the matching role
 template from `system/local`.
 
+## Internet access control
+
+`splunk_docker_allow_internet_access` defaults to `false`. When disabled, the
+role turns off Splunkbase browsing and update checks, writes the Splunk
+instrumentation telemetry opt-out, disables the bundled mobile gateway, and
+skips installation of the cloud-only AI Assistant. The AI Assistant remains in
+the Splunkbase mirror registry. App-local disable overlays are removed when
+internet access is enabled. The role also sets `PYTHONHTTPSVERIFY=1` in
+`etc/splunk-launch.conf` in both modes, replacing the image's insecure default.
+
 ## Technology Add-ons
 
 TAs are placed in `files/` and configured in `splunk_docker_addons`:
