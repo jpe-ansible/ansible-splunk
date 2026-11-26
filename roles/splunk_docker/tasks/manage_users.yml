@@ -40,6 +40,26 @@
         status_code: [200, 201]
       no_log: true
 
+    # The MCP Server app mints only encrypted tokens, and refuses to mint until
+    # its encryption key exists. POST creates the key once: 201 when it was
+    # created, 409 when a key is already present.
+    - name: Ensure the MCP token encryption key exists
+      ansible.builtin.uri:
+        url: "https://127.0.0.1:{{ splunk_docker_mgmt_port }}/services/mcp_token/key-pair"
+        method: POST
+        user: "{{ splunk_admin_user | default('admin') }}"
+        password: "{{ splunk_docker_password }}"
+        force_basic_auth: true
+        validate_certs: false
+        status_code: [201, 409]
+      register: splunk_docker_mcp_key_pair
+      changed_when: splunk_docker_mcp_key_pair.status == 201
+      no_log: true
+      when: >-
+        'mcp' in (splunk_docker_users
+                  | map(attribute='token_audience', default=splunk_docker_token_audience)
+                  | list)
+
     - name: Reconcile each managed user and its token
       ansible.builtin.include_tasks: manage_one_user.yml
       loop: "{{ splunk_docker_users }}"
