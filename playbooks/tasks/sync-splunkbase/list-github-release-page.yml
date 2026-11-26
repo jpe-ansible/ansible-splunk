@@ -1,0 +1,39 @@
+---
+- name: Request a GitHub releases page
+  ansible.builtin.uri:
+    url: "https://api.github.com/repos/{{ github_release_entry.github_repo }}/releases?per_page=100&page={{ github_release_page_number }}"
+    method: GET
+    headers:
+      Accept: application/vnd.github+json
+      X-GitHub-Api-Version: "2022-11-28"
+    return_content: true
+    status_code: 200
+    timeout: 30
+  check_mode: false
+  register: github_release_page_response
+  changed_when: false
+
+- name: Validate the GitHub releases page response
+  ansible.builtin.assert:
+    that:
+      - github_release_page_response.json is defined
+      - github_release_page_response.json is sequence
+      - github_release_page_response.json is not string
+    fail_msg: >-
+      GitHub returned an unexpected release-list response for
+      {{ github_release_entry.github_repo }} page {{ github_release_page_number }}.
+    quiet: true
+
+- name: Append the GitHub releases page
+  ansible.builtin.set_fact:
+    github_release_page_results: >-
+      {{ github_release_page_results + github_release_page_response.json }}
+
+- name: Advance the GitHub release page number
+  ansible.builtin.set_fact:
+    github_release_page_number: "{{ github_release_page_number | int + 1 }}"
+  when: github_release_page_response.json | length == 100
+
+- name: Read the next GitHub release page
+  ansible.builtin.include_tasks: list-github-release-page.yml
+  when: github_release_page_response.json | length == 100

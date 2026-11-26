@@ -103,12 +103,17 @@ See [`roles/splunk_docker/files/README.md`](roles/splunk_docker/files/README.md)
 | `deploy_docker.yml` | Deploys Splunk container, assuming Docker is pre-installed |
 | `validate.yml` | Post-deploy validation: ports, HEC, web UI |
 | `configure_indexes.yml` | Index configuration only (idempotent) |
-| `sync-splunkbase.yml` | Mirrors current Splunkbase releases at stable artifact keys and publishes the deployment manifest |
+| `sync-splunkbase.yml` | Mirrors the current Splunkbase package and available Splunkbase/GitHub release history to object storage and publishes the manifest |
 
-`sync-splunkbase.yml` stores each app at one version-free key. Native S3 bucket
-versioning retains prior object versions, while current objects carry
-`channel=latest`, `version`, and `splunkbase_id` tags. Run the priority vendor
-AI scope with `-e splunkbase_update_scope=official_ai`; it updates Python for
+`sync-splunkbase.yml` keeps the current Splunkbase package at its version-free
+key for the air-gapped host. It also stores each available Splunkbase release
+and each GitHub release asset at `<app_dir>/<version-or-tag>/<filename>`,
+skipping keys that already exist. The manifest keeps its current `version` and
+`filename` fields and adds a sorted `releases` list from versioned keys. Latest
+Splunkbase objects carry `channel=latest`, `version`, and `splunkbase_id` tags;
+native S3 bucket versioning remains enabled for the stable key. A release asset
+that returns HTTP 403 or 404 is logged and skipped. Run the priority vendor AI
+scope with `-e splunkbase_update_scope=official_ai`; it updates Python for
 Scientific Computing, Splunk AI Toolkit, MLTK Container, and Splunk AI Assistant
 without replacing unrelated manifest entries.
 

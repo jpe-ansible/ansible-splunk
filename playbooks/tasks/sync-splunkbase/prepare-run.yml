@@ -24,6 +24,11 @@
     splunkbase_registry_entries: >-
       {{ splunk_docker_addons | selectattr('splunkbase_id', 'defined') | list }}
 
+- name: Build list of registered GitHub release entries
+  ansible.builtin.set_fact:
+    github_release_entries: >-
+      {{ splunk_docker_addons | selectattr('github_repo', 'defined') | list }}
+
 - name: Validate requested Splunkbase update scope
   ansible.builtin.assert:
     that:

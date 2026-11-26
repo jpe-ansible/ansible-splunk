@@ -8,9 +8,8 @@
 #   app_dir        — extracted directory name under /opt/splunk/etc/apps/.
 #                    Equals the Splunkbase `appid` for splunkbase entries.
 #   splunkbase_id  — Splunkbase numeric app ID. When present, playbooks/sync-splunkbase.yml
-#                    resolves the LATEST release from the public Splunkbase API and
-#                    mirrors it to the stable object-storage key. The sync also keeps
-#                    every downloadable release under app_dir/version/filename. When
+#                    mirrors the current package to the stable object-storage key and
+#                    each downloadable release under app_dir/version/filename. When
 #                    absent, the entry is skipped by the sync and must be populated manually.
 #   pin_version    — optional. Hard-pin to an exact version string to hold back a bad
 #                    release. When absent (the default), the entry tracks latest.
@@ -28,10 +27,11 @@
 #                    with `-e splunkbase_update_scope=official_ai` (partial manifest
 #                    merge). Omit or set false for the default `all` scope only.
 #
-# Flow: sync-splunkbase.yml (control node, has internet) resolves the latest version
-# per splunkbase_id, downloads it, mirrors it to the version-free key, and stores every
-# downloadable release under app_dir/version/filename in the object-storage `splunk-addons`
-# bucket. It writes manifest.json mapping app_dir → {version, filename, releases}. The air-gapped Splunk VM then reads
+# Flow: sync-splunkbase.yml (control node, has internet) mirrors each current package
+# to its version-free key and preserves downloadable release history under
+# app_dir/version/filename in the object-storage
+# `splunk-addons` bucket. It writes manifest.json mapping app_dir to the current
+# version and filename plus a sorted releases list. The air-gapped Splunk VM then reads
 # manifest.json over the LAN and re-extracts any app whose installed version differs
 # (roles/splunk_docker/tasks/apps.yml). No manual downloads; no version bumps here —
 # add `pin_version` only to deliberately freeze a single app.

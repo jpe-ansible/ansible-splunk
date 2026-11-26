@@ -31,6 +31,11 @@ PROBES = {
     "playbooks/tasks/sync-splunkbase/resolve-and-sync.yml": [
         "Resolve latest release per Splunkbase entry",
         "Query current object-storage version tag for each entry",
+        "Check whether each versioned release object already exists",
+        "Query versioned object keys for every mirrored app",
+    ],
+    "playbooks/tasks/sync-splunkbase/list-github-release-page.yml": [
+        "Request a GitHub releases page",
     ],
     "roles/splunk_docker/tasks/verify_hec_completeness.yml": [
         "Query live HEC input stanzas from Splunk",

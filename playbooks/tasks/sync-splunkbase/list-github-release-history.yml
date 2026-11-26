@@ -1,0 +1,44 @@
+---
+- name: Initialize GitHub release pagination
+  ansible.builtin.set_fact:
+    github_release_page_number: 1
+    github_release_page_results: []
+
+- name: Read every GitHub release page for this add-on
+  ansible.builtin.include_tasks: list-github-release-page.yml
+
+- name: Log GitHub releases that do not include the registered archive
+  ansible.builtin.debug:
+    msg: >-
+      GitHub release {{ github_release.tag_name }} for {{ github_release_entry.github_repo }}
+      does not contain {{ github_release_entry.filename }}; skipping that release.
+  loop: "{{ github_release_page_results }}"
+  loop_control:
+    loop_var: github_release
+    label: "{{ github_release.tag_name | default('(untagged)') }}"
+  vars:
+    github_release_asset: >-
+      {{ github_release.assets | default([])
+         | selectattr('name', 'equalto', github_release_entry.filename)
+         | list | first | default({}) }}
+  when: github_release_asset | length == 0
+
+- name: Add downloadable GitHub release assets to the history plan
+  ansible.builtin.set_fact:
+    release_history_candidates: >-
+      {{ release_history_candidates + [github_release_entry | combine({
+        'version': github_release.tag_name,
+        'download_url': github_release_asset.browser_download_url
+      })] }}
+  loop: "{{ github_release_page_results }}"
+  loop_control:
+    loop_var: github_release
+    label: "{{ github_release.tag_name | default('(untagged)') }}"
+  vars:
+    github_release_asset: >-
+      {{ github_release.assets | default([])
+         | selectattr('name', 'equalto', github_release_entry.filename)
+         | list | first | default({}) }}
+  when:
+    - github_release.tag_name is defined
+    - github_release_asset | length > 0

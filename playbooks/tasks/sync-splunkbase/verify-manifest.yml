@@ -14,7 +14,7 @@
       - --output
       - text
   environment: "{{ s3_env }}"
-  loop: "{{ splunkbase_desired | default([]) }}"
+  loop: "{{ splunkbase_manifest_ready | default([]) }}"
   loop_control:
     label: "{{ item.filename }}"
   register: object_storage_final_tag_query
@@ -54,7 +54,7 @@
       - --output
       - text
   environment: "{{ s3_env }}"
-  loop: "{{ splunkbase_desired | default([]) }}"
+  loop: "{{ splunkbase_manifest_ready | default([]) }}"
   loop_control:
     label: "{{ item.filename }}"
   register: object_storage_final_latest_tag_query
@@ -106,7 +106,24 @@
       expected {{ item.filename }} at {{ item.desired_version }}
       ({{ 'manifest unreadable' if object_storage_manifest_verify.rc != 0 else 'value drift' }}).
     quiet: true
-  loop: "{{ splunkbase_desired | default([]) }}"
+  loop: "{{ splunkbase_manifest_ready | default([]) }}"
   loop_control:
     label: "{{ item.app_dir }}"
   when: splunkbase_manifest is defined
+
+- name: Verify published manifest contains every stored release version
+  ansible.builtin.assert:
+    that:
+      - object_storage_manifest_verify.rc == 0
+      - >-
+        (((object_storage_manifest_verify.stdout | default('{}', true) | from_json)
+          .get(item.app_dir, {}).get('releases', []) | sort)
+         == (item.releases | sort))
+    fail_msg: >-
+      manifest.json history mismatch for {{ item.app_dir }}: expected
+      {{ item.releases | sort }}.
+    quiet: true
+  loop: "{{ splunkbase_history_versions_by_app | default([]) }}"
+  loop_control:
+    label: "{{ item.app_dir }}"
+  when: splunkbase_manifest_work_required | bool

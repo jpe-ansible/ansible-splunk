@@ -50,17 +50,17 @@ for name in ("Write manifest to controller tmpdir", "Publish manifest.json to ob
     conditions = publish.get("when", [])
     if isinstance(conditions, str):
         conditions = [conditions]
-    if not any("splunkbase_plan | length > 0" in condition for condition in conditions):
-        errors.append(f"FAIL: an empty plan must not write or publish the manifest ({name})")
+    if "splunkbase_manifest_work_required | bool" not in conditions:
+        errors.append(f"FAIL: manifest writes must be gated on latest or history work ({name})")
 
 empty = by_name["Report empty Splunkbase plan"]
-if empty.get("when") != "splunkbase_plan | length == 0" or "Nothing to sync" not in empty["ansible.builtin.debug"]["msg"]:
-    errors.append("FAIL: an empty plan must report a clean no-op")
+if empty.get("when") != ["splunkbase_plan | length == 0", "not (splunkbase_manifest_work_required | bool)"]:
+    errors.append("FAIL: an empty plan may report a no-op only when there is no release history work")
 
 verify = next(task for task in yaml.safe_load(PLAYBOOK.read_text()) if task["name"] == "Mirror latest Splunkbase add-ons into object storage")
 verify = next(task for task in verify["tasks"] if task["name"] == "Verify published object-storage tags and manifest")
-if "splunkbase_plan | length > 0" not in verify.get("when", ""):
-    errors.append("FAIL: empty plans must skip post-sync manifest verification")
+if "splunkbase_manifest_work_required" not in verify.get("when", ""):
+    errors.append("FAIL: post-sync verification must also cover history-only updates")
 
 if errors:
     print("\n".join(errors))

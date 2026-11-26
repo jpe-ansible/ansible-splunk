@@ -4,6 +4,7 @@
 import sys
 from pathlib import Path
 
+import jinja2
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -12,6 +13,36 @@ REGISTRY = ROOT / "roles/splunk_docker/vars/addons.yml"
 tasks = yaml.safe_load(TASKS.read_text())
 by_name = {task["name"]: task for task in tasks}
 errors = []
+
+expected_unifi_apps = {
+    9831: "TA_unifi_ng",
+    9856: "unifi_app_for_splunk",
+    10216: "TA-unifi_security",
+    10217: "unifi_security",
+}
+registry_entries = yaml.safe_load(REGISTRY.read_text())["splunk_docker_addons"]
+registry_by_id = {
+    int(entry["splunkbase_id"]): entry
+    for entry in registry_entries
+    if "splunkbase_id" in entry
+}
+for app_id, app_dir in expected_unifi_apps.items():
+    entry = registry_by_id.get(app_id)
+    if entry is None:
+        errors.append(f"FAIL: Splunkbase app {app_id} is missing from the registry")
+        continue
+    if entry.get("app_dir") != app_dir or entry.get("install") is not False:
+        errors.append(f"FAIL: Splunkbase app {app_id} must parse with app_dir={app_dir} and install=false")
+    if "." in Path(entry["filename"]).stem:
+        errors.append(f"FAIL: Splunkbase app {app_id} filename must not contain a version")
+
+key_builder = by_name["Build versioned release object keys"]
+key_template = key_builder.get("vars", {}).get("versioned_history_key", "")
+rendered_key = jinja2.Template(key_template).render(
+    item={"app_dir": "sample_addon", "version": "1.2.3", "filename": "package.tar"}
+)
+if rendered_key != "sample_addon/1.2.3/package.tar":
+    errors.append(f"FAIL: versioned object key rendered as {rendered_key!r}")
 
 nvidia_entries = [
     entry for entry in yaml.safe_load(REGISTRY.read_text())["splunk_docker_addons"]
@@ -47,9 +78,16 @@ if tag.get("loop") != "{{ splunkbase_plan }}" or tag.get("when") != "item.needs_
 if tag.get("changed_when") != "item.needs_tag":
     errors.append("FAIL: tag writes must report change only when their tags differ")
 
+latest_download = by_name["Download drifted entries from Splunkbase"]
+if "ansible.builtin.get_url" not in latest_download:
+    errors.append("FAIL: the current package download must keep its existing get_url behavior")
+latest_upload = by_name["Upload synced archives to object storage"]
+if latest_upload.get("loop") != "{{ splunkbase_to_sync }}":
+    errors.append("FAIL: current packages must continue to upload to their stable keys")
+
 manifest_read = by_name["Read existing manifest for scoped updates and change detection"]
-if manifest_read.get("when") != "splunkbase_plan | length > 0":
-    errors.append("FAIL: one published-manifest read must serve full and scoped updates")
+if manifest_read.get("when") != "splunkbase_manifest_work_required | bool":
+    errors.append("FAIL: one published-manifest read must serve latest and history updates")
 if manifest_read.get("changed_when") is not False or manifest_read.get("no_log") is not True:
     errors.append("FAIL: the published-manifest read must remain read-only and quiet")
 
@@ -69,6 +107,8 @@ if publish.get("changed_when") != "splunkbase_manifest_needs_publish | bool":
 if not any("splunkbase_manifest_needs_publish" in condition
            for condition in publish.get("when", [])):
     errors.append("FAIL: an unchanged manifest must skip its S3 publish")
+if "splunkbase_manifest_work_required | bool" not in publish.get("when", []):
+    errors.append("FAIL: manifest publication must run for release-history updates")
 
 
 def desired_tags(version, splunkbase_id):
