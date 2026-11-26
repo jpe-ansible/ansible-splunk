@@ -14,6 +14,34 @@
   changed_when: false
   failed_when: false
 
+- name: Initialize the release history catalogue
+  ansible.builtin.set_fact:
+    release_history_candidates: []
+
+- name: Add every listed Splunkbase release to the history catalogue
+  ansible.builtin.set_fact:
+    release_history_candidates: >-
+      {{ release_history_candidates + [item.0.item | combine({
+        'version': item.1.name
+      })] }}
+  loop: >-
+    {{ splunkbase_release_q.results
+       | selectattr('status', 'equalto', 200)
+       | selectattr('json', 'defined') | list
+       | subelements('json') }}
+  loop_control:
+    label: "{{ item.0.item.app_dir }} v{{ item.1.name | default('(unnamed)') }}"
+  when:
+    - item.1 is mapping
+    - item.1.name is defined
+
+- name: Add every GitHub release asset to the history catalogue
+  ansible.builtin.include_tasks: list-github-release-history.yml
+  loop: "{{ github_release_entries }}"
+  loop_control:
+    loop_var: github_release_entry
+    label: "{{ github_release_entry.github_repo }}"
+
 - name: Initialize resolved release versions
   ansible.builtin.set_fact:
     splunkbase_desired_all: []
@@ -138,6 +166,75 @@
       version: "{{ item.item.desired_version | string | trim }}"
       splunkbase_id: "{{ item.item.splunkbase_id | string }}"
 
+- name: Initialize versioned release object plan
+  ansible.builtin.set_fact:
+    versioned_history_objects: []
+    release_history_to_upload: []
+
+- name: Build versioned release object keys
+  ansible.builtin.set_fact:
+    versioned_history_objects: >-
+      {{ versioned_history_objects + [item | combine({
+        'history_key': versioned_history_key,
+        'history_temp_path': splunkbase_sync_tmpdir ~ '/history/' ~
+          (versioned_history_key | hash('sha256'))
+      })] }}
+  loop: "{{ release_history_candidates }}"
+  loop_control:
+    label: "{{ item.app_dir }}/{{ item.version }}/{{ item.filename }}"
+  vars:
+    versioned_history_key: "{{ item.app_dir }}/{{ item.version }}/{{ item.filename }}"
+
+- name: Keep one plan entry per versioned object key
+  ansible.builtin.set_fact:
+    versioned_history_objects: "{{ versioned_history_objects | unique(attribute='history_key') | list }}"
+
+- name: Check whether each versioned release object already exists
+  ansible.builtin.command:
+    argv:
+      - aws
+      - s3api
+      - head-object
+      - --bucket
+      - "{{ object_storage_bucket }}"
+      - --key
+      - "{{ history_key }}"
+  environment: "{{ s3_env }}"
+  vars:
+    history_key: "{{ item.history_key }}"
+  loop: "{{ versioned_history_objects }}"
+  loop_control:
+    label: "{{ item.history_key }}"
+  register: versioned_history_object_probes
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  no_log: true
+
+- name: Validate versioned-object probes only report missing keys
+  ansible.builtin.assert:
+    that:
+      - >-
+        item.rc == 0
+        or '404' in ((item.stdout | default('')) ~ (item.stderr | default('')))
+        or 'NoSuchKey' in ((item.stdout | default('')) ~ (item.stderr | default('')))
+        or 'Not Found' in ((item.stdout | default('')) ~ (item.stderr | default('')))
+    fail_msg: >-
+      head-object failed for {{ item.item.history_key }} with rc={{ item.rc }};
+      only a missing-object response may schedule a download.
+    quiet: true
+  loop: "{{ versioned_history_object_probes.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item.history_key }}"
+
+- name: Add missing versioned release objects to the upload plan
+  ansible.builtin.set_fact:
+    release_history_to_upload: "{{ release_history_to_upload + [item.item] }}"
+  loop: "{{ versioned_history_object_probes.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item.history_key }}"
+  when: item.rc != 0
+
 - name: Show sync decisions
   ansible.builtin.debug:
     msg: >-
@@ -152,221 +249,6 @@
   ansible.builtin.meta: end_play
   when: ansible_check_mode
 
-- name: Build list of entries that need sync
-  ansible.builtin.set_fact:
-    splunkbase_to_sync: "{{ splunkbase_plan | selectattr('needs_sync') | list }}"
 
-- name: Authenticate to Splunkbase (only when something needs downloading)
-  ansible.builtin.uri:
-    url: "{{ splunkbase_api }}/api/account:login/"
-    method: POST
-    body_format: form-urlencoded
-    body:
-      username: "{{ lookup('env', 'SPLUNKBASE_USERNAME') }}"
-      password: "{{ lookup('env', 'SPLUNKBASE_PASSWORD') }}"
-    return_content: true
-    status_code: 200
-  register: splunkbase_login
-  when: splunkbase_to_sync | length > 0
-  no_log: true
-
-- name: Extract Splunkbase session token
-  ansible.builtin.set_fact:
-    splunkbase_token: >-
-      {{ splunkbase_login.content
-         | regex_search('<id>([^<]+)</id>', '\1')
-         | default([], true)
-         | first | default('') }}
-  when: splunkbase_to_sync | length > 0
-  no_log: true
-
-- name: Fail if session token not returned
-  ansible.builtin.assert:
-    that:
-      - splunkbase_token is defined
-      - splunkbase_token | length > 0
-    fail_msg: >-
-      Splunkbase login returned no session token. Check
-      SPLUNKBASE_USERNAME / SPLUNKBASE_PASSWORD.
-  when: splunkbase_to_sync | length > 0
-
-- name: Download drifted entries from Splunkbase
-  ansible.builtin.get_url:
-    url: >-
-      {{ splunkbase_api }}/app/{{ item.splunkbase_id }}/release/{{ item.desired_version }}/download/
-    dest: "{{ splunkbase_sync_tmpdir }}/{{ item.filename }}"
-    headers:
-      X-Auth-Token: "{{ splunkbase_token }}"
-    force: true
-    mode: "0600"
-    timeout: 120
-  loop: "{{ splunkbase_to_sync }}"
-  loop_control:
-    label: "{{ item.filename }} v{{ item.desired_version }}"
-
-- name: Upload synced archives to object storage
-  ansible.builtin.command:
-    argv:
-      - aws
-      - s3
-      - cp
-      - "{{ splunkbase_sync_tmpdir }}/{{ item.filename }}"
-      - "s3://{{ object_storage_bucket }}/{{ item.filename }}"
-  environment: "{{ s3_env }}"
-  loop: "{{ splunkbase_to_sync }}"
-  loop_control:
-    label: "{{ item.filename }}"
-  changed_when: true
-
-- name: Tag object-storage objects as the current latest release
-  ansible.builtin.command:
-    argv:
-      - aws
-      - s3api
-      - put-object-tagging
-      - --bucket
-      - "{{ object_storage_bucket }}"
-      - --key
-      - "{{ item.filename }}"
-      - --tagging
-      - "{{ {'TagSet': [
-             {'Key': 'channel', 'Value': 'latest'},
-             {'Key': 'version', 'Value': item.desired_version | string | trim},
-             {'Key': 'splunkbase_id', 'Value': item.splunkbase_id | string}]} | to_json }}"
-  environment: "{{ s3_env }}"
-  loop: "{{ splunkbase_plan }}"
-  loop_control:
-    label: "{{ item.filename }}"
-  changed_when: item.needs_tag
-  when: item.needs_tag
-
-- name: Remove downloaded archives from controller tmpdir
-  ansible.builtin.file:
-    path: "{{ splunkbase_sync_tmpdir }}/{{ item.filename }}"
-    state: absent
-  loop: "{{ splunkbase_to_sync }}"
-  loop_control:
-    label: "{{ item.filename }}"
-
-- name: Read existing manifest for scoped updates and change detection
-  ansible.builtin.command:
-    argv:
-      - aws
-      - s3
-      - cp
-      - "s3://{{ object_storage_bucket }}/manifest.json"
-      - "-"
-  environment: "{{ s3_env }}"
-  register: existing_splunkbase_manifest
-  changed_when: false
-  failed_when: false
-  when: splunkbase_plan | length > 0
-  no_log: true
-
-- name: Verify scoped update can preserve the existing manifest
-  ansible.builtin.assert:
-    that:
-      - existing_splunkbase_manifest.rc == 0
-      - existing_splunkbase_manifest.stdout | default('{}', true) | from_json is mapping
-    fail_msg: >-
-      A scoped update must read the existing manifest.json before publishing.
-      Run the complete update scope to rebuild a missing or invalid manifest.
-    quiet: true
-  when:
-    - splunkbase_manifest_is_partial | bool
-    - splunkbase_plan | length > 0
-
-- name: Initialize manifest for this update scope
-  ansible.builtin.set_fact:
-    splunkbase_manifest: >-
-      {{ (existing_splunkbase_manifest.stdout | default('{}', true) | from_json)
-         if splunkbase_manifest_is_partial | bool else {} }}
-  when: splunkbase_plan | length > 0
-
-- name: Build manifest (app_dir → {version, filename})
-  ansible.builtin.set_fact:
-    splunkbase_manifest: >-
-      {{ splunkbase_manifest | default({}) | combine({
-        item.app_dir: {'version': item.desired_version, 'filename': item.filename}
-      }) }}
-  loop: "{{ splunkbase_desired }}"
-  loop_control:
-    label: "{{ item.app_dir }}"
-
-- name: Initialize published manifest comparison
-  ansible.builtin.set_fact:
-    splunkbase_published_manifest: {}
-    splunkbase_published_manifest_readable: false
-  changed_when: false
-  when: splunkbase_plan | length > 0
-
-- name: Parse published manifest when readable
-  when:
-    - splunkbase_plan | length > 0
-    - existing_splunkbase_manifest.rc == 0
-  block:
-    - name: Parse published manifest JSON
-      ansible.builtin.set_fact:
-        splunkbase_published_manifest: "{{ existing_splunkbase_manifest.stdout | from_json }}"
-        splunkbase_published_manifest_readable: true
-      changed_when: false
-      no_log: true
-  rescue:
-    - name: Mark published manifest as unreadable
-      ansible.builtin.set_fact:
-        splunkbase_published_manifest_readable: false
-      changed_when: false
-      no_log: true
-
-- name: Decide whether the published manifest needs an update
-  ansible.builtin.set_fact:
-    splunkbase_manifest_needs_publish: >-
-      {{ not (splunkbase_published_manifest_readable | bool)
-         or splunkbase_published_manifest != splunkbase_manifest }}
-  changed_when: false
-  when: splunkbase_plan | length > 0
-
-- name: Write manifest to controller tmpdir
-  ansible.builtin.copy:
-    content: "{{ splunkbase_manifest | to_nice_json }}\n"
-    dest: "{{ splunkbase_sync_tmpdir }}/manifest.json"
-    mode: "0600"
-  when:
-    - splunkbase_plan | length > 0
-    - splunkbase_manifest_needs_publish | bool
-
-- name: Publish manifest.json to object storage
-  ansible.builtin.command:
-    argv:
-      - aws
-      - s3
-      - cp
-      - "{{ splunkbase_sync_tmpdir }}/manifest.json"
-      - "s3://{{ object_storage_bucket }}/manifest.json"
-  environment: "{{ s3_env }}"
-  changed_when: splunkbase_manifest_needs_publish | bool
-  when:
-    - splunkbase_plan | length > 0
-    - splunkbase_manifest_needs_publish | bool
-
-- name: Remove manifest from controller tmpdir
-  ansible.builtin.file:
-    path: "{{ splunkbase_sync_tmpdir }}/manifest.json"
-    state: absent
-  when: splunkbase_plan | length > 0
-
-- name: Report empty Splunkbase plan
-  ansible.builtin.debug:
-    msg: >-
-      Nothing to sync; the resolved plan is empty, so the existing bucket and
-      manifest.json were left unchanged.
-  when: splunkbase_plan | length == 0
-
-- name: Summary
-  ansible.builtin.debug:
-    msg: >-
-      Splunkbase sync complete.
-      {{ splunkbase_to_sync | length }} of
-      {{ splunkbase_desired | length }} resolvable entries updated;
-      manifest.json published with {{ splunkbase_manifest | length }} apps.
-  when: splunkbase_plan | length > 0
+- name: Download, mirror, and publish resolved releases
+  ansible.builtin.import_tasks: sync-and-publish.yml

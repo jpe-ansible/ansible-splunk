@@ -1,11 +1,11 @@
 ---
-# Splunkbase → object-storage (RustFS) sync playbook — resolves LATEST, mirrors, writes manifest
+# Splunkbase/GitHub release-history sync — mirrors latest stable packages, all releases, and manifest
 #
-# For every deployable addons.yml entry with a `splunkbase_id`, resolves the latest release
-# from the PUBLIC Splunkbase API (no auth needed for resolution), downloads it with
-# the authenticated session, and mirrors it into the `splunk-addons` bucket on the
-# writes `manifest.json` (app_dir → {version, filename}) to the bucket — the version
-# bridge the air-gapped Splunk VM reads over the LAN to know which apps to (re)extract.
+# Splunkbase entries resolve the latest release from the public API and keep the
+# version-free object key consumed by the air-gapped Splunk VM. Every downloadable
+# Splunkbase release and every matching GitHub release asset is also stored at
+# app_dir/version/filename. `manifest.json` retains the app_dir -> {version,
+# filename} mapping and lists sorted versioned releases for each mirrored app.
 #
 # `pin_version` on an entry overrides resolution (hold back a bad release).
 #
@@ -81,4 +81,4 @@
 
     - name: Verify published object-storage tags and manifest
       ansible.builtin.include_tasks: tasks/sync-splunkbase/verify-manifest.yml
-      when: splunkbase_plan is not defined or splunkbase_plan | length > 0
+      when: splunkbase_manifest_work_required | default(splunkbase_plan is not defined or splunkbase_plan | length > 0) | bool
