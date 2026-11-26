@@ -1,0 +1,26 @@
+---
+- name: Ensure Splunk instrumentation app-local directory exists
+  ansible.builtin.file:
+    path: "{{ splunk_docker_etc_dir }}/apps/splunk_instrumentation/local"
+    state: directory
+    owner: "{{ splunk_docker_user }}"
+    group: "{{ splunk_docker_group }}"
+    mode: '0755'
+  when: not (splunk_docker_allow_internet_access | bool)
+
+- name: Disable Splunk usage telemetry
+  ansible.builtin.template:
+    src: telemetry.conf.j2
+    dest: "{{ splunk_docker_etc_dir }}/apps/splunk_instrumentation/local/telemetry.conf"
+    owner: "{{ splunk_docker_user }}"
+    group: "{{ splunk_docker_group }}"
+    mode: '0644'
+  when: not (splunk_docker_allow_internet_access | bool)
+  notify: Restart Splunk container
+
+- name: Remove Splunk telemetry opt-out when internet access is enabled
+  ansible.builtin.file:
+    path: "{{ splunk_docker_etc_dir }}/apps/splunk_instrumentation/local/telemetry.conf"
+    state: absent
+  when: splunk_docker_allow_internet_access | bool
+  notify: Restart Splunk container

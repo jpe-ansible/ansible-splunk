@@ -51,6 +51,13 @@ The role keeps its runtime `inputs.conf`, `indexes.conf`, `server.conf`, and
 first created, it migrates only sections and keys rendered by the matching role
 template from `system/local`.
 
+## Internet access control
+
+`splunk_docker_allow_internet_access` defaults to `false`. When disabled, the
+role turns off Splunkbase browsing and update checks, and writes the Splunk
+instrumentation telemetry opt-out. Enabling the variable removes the managed
+telemetry opt-out.
+
 ## Technology Add-ons
 
 TAs are placed in `files/` and configured in `splunk_docker_addons`:

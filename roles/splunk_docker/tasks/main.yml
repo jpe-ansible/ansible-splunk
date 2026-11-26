@@ -244,6 +244,9 @@
 - name: Install apps and add-ons
   ansible.builtin.include_tasks: apps.yml
 
+- name: Enforce Splunk outbound opt-outs
+  ansible.builtin.include_tasks: configure_outbound_opt_outs.yml
+
 # The packaged splunk-homelab-alerts app ships delivery defaults that point its
 # detectors at an unconfigured Zammad action; homelab_alerts_delivery.yml
 # repoints them at the ntfy hub webhook. MUST come after "Install apps and
