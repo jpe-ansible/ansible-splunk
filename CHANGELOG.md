@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.128.1](https://github.com/jpe-ansible/ansible-splunk/compare/v0.128.0...v0.128.1) (2026-11-26)
+
+
+### Bug Fixes
+
+* **splunk_docker:** create the MCP token encryption key before minting ([#945](https://github.com/jpe-ansible/ansible-splunk/issues/945)) ([d146e87](https://github.com/jpe-ansible/ansible-splunk/commit/d146e878d6ac8177e074cf3e289c42d7d0b2ea74))
+
 ## [0.128.0](https://github.com/jpe-ansible/ansible-splunk/compare/v0.127.0...v0.128.0) (2026-11-26)
 
 
