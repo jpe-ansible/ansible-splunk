@@ -70,6 +70,57 @@
           - web_conf.stat.exists
         fail_msg: "web.conf not found - web interface not configured"
 
+    - name: Read telemetry.conf
+      ansible.builtin.slurp:
+        src: "{{ splunk_docker_etc_dir }}/apps/splunk_instrumentation/local/telemetry.conf"
+      register: telemetry_conf
+
+    - name: Assert usage telemetry is disabled
+      ansible.builtin.assert:
+        that:
+          - "'[general]' in (telemetry_conf.content | b64decode)"
+          - "'sendAnonymizedUsage = false' in (telemetry_conf.content | b64decode)"
+          - "'sendLicenseUsage = false' in (telemetry_conf.content | b64decode)"
+          - "'sendSupportUsage = false' in (telemetry_conf.content | b64decode)"
+          - "'sendAnonymizedWebAnalytics = false' in (telemetry_conf.content | b64decode)"
+          - "'precheckSendAnonymizedUsage = false' in (telemetry_conf.content | b64decode)"
+          - "'precheckSendLicenseUsage = false' in (telemetry_conf.content | b64decode)"
+          - "'precheckSendSupportUsage = false' in (telemetry_conf.content | b64decode)"
+          - "'showOptInModal = false' in (telemetry_conf.content | b64decode)"
+          - "'deprecatedConfig = false' in (telemetry_conf.content | b64decode)"
+
+    - name: Read mobile gateway app.conf
+      ansible.builtin.slurp:
+        src: "{{ splunk_docker_etc_dir }}/apps/splunk_secure_gateway/local/app.conf"
+      register: mobile_gateway_app_conf
+
+    - name: Assert mobile gateway is disabled
+      ansible.builtin.assert:
+        that:
+          - "'[install]' in (mobile_gateway_app_conf.content | b64decode)"
+          - "'state = disabled' in (mobile_gateway_app_conf.content | b64decode)"
+
+    - name: Read cloud assistant app.conf
+      ansible.builtin.slurp:
+        src: "{{ splunk_docker_etc_dir }}/apps/Splunk_AI_Assistant_Cloud/local/app.conf"
+      register: cloud_assistant_app_conf
+
+    - name: Assert cloud assistant is disabled
+      ansible.builtin.assert:
+        that:
+          - "'[install]' in (cloud_assistant_app_conf.content | b64decode)"
+          - "'state = disabled' in (cloud_assistant_app_conf.content | b64decode)"
+
+    - name: Read splunk-launch.conf
+      ansible.builtin.slurp:
+        src: "{{ splunk_docker_etc_dir }}/splunk-launch.conf"
+      register: splunk_launch_conf
+
+    - name: Assert Splunk Python verifies TLS
+      ansible.builtin.assert:
+        that:
+          - "'PYTHONHTTPSVERIFY=1' in (splunk_launch_conf.content | b64decode)"
+
     - name: Check firewall script exists
       ansible.builtin.stat:
         path: "{{ splunk_docker_config_dir }}/firewall.sh"

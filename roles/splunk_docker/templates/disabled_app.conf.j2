@@ -1,3 +1,5 @@
+{% if not splunk_docker_allow_internet_access %}
 # Managed by the splunk_docker Ansible role
 [install]
 state = disabled
+{% endif %}
