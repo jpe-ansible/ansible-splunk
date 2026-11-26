@@ -24,3 +24,38 @@
     state: absent
   when: splunk_docker_allow_internet_access | bool
   notify: Restart Splunk container
+
+- name: Ensure offline-disabled app-local directories exist
+  ansible.builtin.file:
+    path: "{{ splunk_docker_etc_dir }}/apps/{{ item }}/local"
+    state: directory
+    owner: "{{ splunk_docker_user }}"
+    group: "{{ splunk_docker_group }}"
+    mode: '0755'
+  loop:
+    - splunk_secure_gateway
+    - Splunk_AI_Assistant_Cloud
+  when: not (splunk_docker_allow_internet_access | bool)
+
+- name: Disable apps that can initiate internet requests
+  ansible.builtin.template:
+    src: disabled_app.conf.j2
+    dest: "{{ splunk_docker_etc_dir }}/apps/{{ item }}/local/app.conf"
+    owner: "{{ splunk_docker_user }}"
+    group: "{{ splunk_docker_group }}"
+    mode: '0644'
+  loop:
+    - splunk_secure_gateway
+    - Splunk_AI_Assistant_Cloud
+  when: not (splunk_docker_allow_internet_access | bool)
+  notify: Restart Splunk container
+
+- name: Remove offline app-disable overlays when internet access is enabled
+  ansible.builtin.file:
+    path: "{{ splunk_docker_etc_dir }}/apps/{{ item }}/local/app.conf"
+    state: absent
+  loop:
+    - splunk_secure_gateway
+    - Splunk_AI_Assistant_Cloud
+  when: splunk_docker_allow_internet_access | bool
+  notify: Restart Splunk container

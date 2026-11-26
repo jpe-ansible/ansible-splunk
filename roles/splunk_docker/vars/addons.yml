@@ -58,7 +58,12 @@ splunk_docker_addons:
   - {filename: mltk-container.tar, app_dir: mltk-container, splunkbase_id: 4607, official_ai: true}
   - {filename: ai-workbench-adjutant-ai.tar, app_dir: itmip_ai_splunk_assistent_app, splunkbase_id: 8747}
   - {filename: genai-observability-for-splunk.tar, app_dir: splunk_genai_observability, splunkbase_id: 8308}
-  - {filename: splunk-ai-assistant.tar, app_dir: Splunk_AI_Assistant_Cloud, splunkbase_id: 7245, official_ai: true}
+  # Keep mirrored for allowed installs, but don't deploy this cloud-only app offline.
+  - filename: splunk-ai-assistant.tar
+    app_dir: Splunk_AI_Assistant_Cloud
+    splunkbase_id: 7245
+    official_ai: true
+    install: "{{ splunk_docker_allow_internet_access | default(false) | bool }}"
   - {filename: alerts-for-splunk-admins.tar, app_dir: SplunkAdmins, splunkbase_id: 3796}
   - {filename: admin-ninja-app.tar, app_dir: admin_ninja_app, splunkbase_id: 6664}
   - {filename: admin-ninja-ta.tar, app_dir: TA_admin_ninja, splunkbase_id: 6665}

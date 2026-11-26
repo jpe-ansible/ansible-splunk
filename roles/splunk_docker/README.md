@@ -54,9 +54,11 @@ template from `system/local`.
 ## Internet access control
 
 `splunk_docker_allow_internet_access` defaults to `false`. When disabled, the
-role turns off Splunkbase browsing and update checks, and writes the Splunk
-instrumentation telemetry opt-out. Enabling the variable removes the managed
-telemetry opt-out.
+role turns off Splunkbase browsing and update checks, writes the Splunk
+instrumentation telemetry opt-out, disables the bundled mobile gateway, and
+skips installation of the cloud-only AI Assistant. The AI Assistant remains in
+the Splunkbase mirror registry. App-local disable overlays are removed when
+internet access is enabled.
 
 ## Technology Add-ons
 
