@@ -11,7 +11,11 @@ TASKS = ROOT / "playbooks/tasks/sync-splunkbase/resolve-and-sync.yml"
 PLAYBOOK = ROOT / "playbooks/sync-splunkbase.yml"
 SITE = ROOT / "playbooks/site.yml"
 
-tasks = yaml.safe_load(TASKS.read_text())
+# resolve-and-sync.yml imports sync-and-publish.yml, so the check-mode end
+# task precedes the authentication that follows it across that boundary.
+tasks = yaml.safe_load(TASKS.read_text()) + yaml.safe_load(
+    (TASKS.parent / "sync-and-publish.yml").read_text()
+)
 by_name = {task["name"]: (index, task) for index, task in enumerate(tasks)}
 errors = []
 

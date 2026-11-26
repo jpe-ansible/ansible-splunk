@@ -10,8 +10,13 @@ ROOT = Path(__file__).resolve().parents[2]
 TASKS = ROOT / "playbooks/tasks/sync-splunkbase/resolve-and-sync.yml"
 PLAYBOOK = ROOT / "playbooks/sync-splunkbase.yml"
 
-tasks = yaml.safe_load(TASKS.read_text())
-by_name = {task["name"]: task for task in tasks}
+# The resolve/sync flow spans two task files (resolve-and-sync.yml imports
+# sync-and-publish.yml); Ansible resolves tasks across that boundary, so the
+# lookups below do too.
+all_tasks = yaml.safe_load(TASKS.read_text()) + yaml.safe_load(
+    (TASKS.parent / "sync-and-publish.yml").read_text()
+)
+by_name = {task["name"]: task for task in all_tasks}
 errors = []
 
 initialize = by_name["Initialize resolved release versions"]

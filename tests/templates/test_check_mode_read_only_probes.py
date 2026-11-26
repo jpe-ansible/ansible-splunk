@@ -32,6 +32,8 @@ PROBES = {
         "Resolve latest release per Splunkbase entry",
         "Query current object-storage version tag for each entry",
         "Check whether each versioned release object already exists",
+    ],
+    "playbooks/tasks/sync-splunkbase/sync-and-publish.yml": [
         "Query versioned object keys for every mirrored app",
     ],
     "playbooks/tasks/sync-splunkbase/list-github-release-page.yml": [
