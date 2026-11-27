@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.128.2](https://github.com/jpe-ansible/ansible-splunk/compare/v0.128.1...v0.128.2) (2026-11-27)
+
+
+### Bug Fixes
+
+* **sync-splunkbase:** make the release-history backfill opt-in ([#946](https://github.com/jpe-ansible/ansible-splunk/issues/946)) ([a1cfac9](https://github.com/jpe-ansible/ansible-splunk/commit/a1cfac9bafdd2c9deb9034b8b66404329a861c37))
+
 ## [0.128.1](https://github.com/jpe-ansible/ansible-splunk/compare/v0.128.0...v0.128.1) (2026-11-26)
 
 
