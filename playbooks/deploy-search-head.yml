@@ -1,0 +1,150 @@
+---
+# Deploy the standalone Splunk search head (the single OpenTofu VM tagged
+# splunk-sh) as a native Splunk Enterprise install and make it the licence
+# manager, via the vendored splunk.splunk role.
+#
+# The last play (tag search_peers, gated behind `never`) adds every host in
+# the `splunk` group (today one, the legacy all-in-one) as this search head's
+# distributed search peer.
+#
+# Usage:
+#   ansible-playbook -i inventory/hosts.yml \
+#     playbooks/deploy-search-head.yml
+#
+# Required environment:
+#   SPLUNK_PASSWORD, SPLUNK_PACKAGE_URL_FULL, SPLUNK_GENERAL_PASS4SYMMKEY,
+#   PROXMOX_DOMAIN, PROXMOX_SSH_KEY_PATH,
+#   SPLUNK_LICENSE (raw .lic XML — a licence manager needs a real licence)
+
+- name: Load OpenTofu inventory
+  ansible.builtin.import_playbook: ../inventory/load_tofu.yml
+
+- name: Validate search head secrets are present
+  hosts: localhost
+  gather_facts: false
+  become: false
+  tasks:
+    - name: Assert required environment variables
+      ansible.builtin.assert:
+        that:
+          - lookup('env', 'SPLUNK_PASSWORD') | length > 0
+          - lookup('env', 'SPLUNK_PACKAGE_URL_FULL') | length > 0
+          - lookup('env', 'SPLUNK_GENERAL_PASS4SYMMKEY') | length > 0
+          - lookup('env', 'PROXMOX_DOMAIN') | length > 0
+          - lookup('env', 'SPLUNK_LICENSE') | length > 0
+          - lookup('env', 'PROXMOX_SSH_KEY_PATH') | length > 0
+        fail_msg: >-
+          Set SPLUNK_PASSWORD, SPLUNK_PACKAGE_URL_FULL,
+          SPLUNK_GENERAL_PASS4SYMMKEY, PROXMOX_DOMAIN, SPLUNK_LICENSE and
+          PROXMOX_SSH_KEY_PATH.
+
+    - name: Assert exactly one splunk-sh host is in the inventory
+      ansible.builtin.assert:
+        that:
+          - groups['splunk_sh'] | default([]) | length == 1
+        fail_msg: >-
+          This playbook builds exactly one standalone search head: tag exactly
+          one OpenTofu VM splunk-sh so group splunk_sh holds exactly one host.
+
+- name: Install Splunk on the search head
+  hosts: splunk_sh
+  become: true
+  vars:
+    deployment_task: check_splunk.yml
+  roles:
+    - role: splunk.splunk
+  tags:
+    - install
+
+- name: Make the search head the licence manager
+  hosts: splunk_sh
+  become: true
+  vars:
+    deployment_task: configure_license.yml
+    # Play vars override group_vars/splunk_sh.yml, which describes a future
+    # clustered peer; this standalone search head is the licence manager.
+    splunk_license_group: Enterprise
+    splunk_license_xml: "{{ lookup('env', 'SPLUNK_LICENSE') }}"
+  roles:
+    - role: splunk.splunk
+  tags:
+    - licence
+  # After the role, not before: splunk_home is `auto_determined` in the role
+  # defaults and only resolves once the role has run, and the role creates
+  # etc/licenses/enterprise/. Handlers flush at end of play, so the role's
+  # active_group change and this write coalesce into ONE restart.
+  tasks:
+    - name: Install the Splunk license
+      ansible.builtin.copy:
+        # `content` checksums against the remote file, so this is the whole
+        # auto-apply mechanism: unchanged is a no-op, a changed license
+        # rewrites and restarts. Fixed filename — Splunk stacks every file in
+        # this directory, so a stable name replaces rather than accumulates.
+        content: "{{ splunk_license_xml }}"
+        dest: "{{ splunk_home }}/etc/licenses/enterprise/enterprise.lic"
+        owner: "{{ splunk_nix_user }}"
+        group: "{{ splunk_nix_group }}"
+        mode: "0600"
+      no_log: true
+      notify: restart splunk
+
+# Run this play only after the all-in-one host is a licence peer of this
+# search head, so two licence managers holding the same licence never see
+# each other.
+- name: Add the all-in-one host as a search peer
+  hosts: splunk_sh
+  become: true
+  vars:
+    # The role run also gives the REST tasks below their variable scope:
+    # splunkd_port is a role default and does not reach a play that does not
+    # apply the role. check_splunk_status.yml is the role's lightest task file.
+    deployment_task: check_splunk_status.yml
+  roles:
+    - role: splunk.splunk
+  tags:
+    - search_peers
+    - never
+  tasks:
+    - name: Read the search head's existing distributed search peers
+      ansible.builtin.uri:
+        url: "https://127.0.0.1:{{ splunkd_port }}/services/search/distributed/peers?output_mode=json&count=0"
+        method: GET
+        url_username: "{{ splunk_admin_username }}"
+        url_password: "{{ splunk_admin_password }}"
+        force_basic_auth: true
+        # The search head's own default splunkd certificate on loopback.
+        validate_certs: false
+      no_log: true
+      register: _existing_peers
+
+    - name: List the title of each already-registered peer
+      ansible.builtin.set_fact:
+        _existing_peer_titles: >-
+          {{ _existing_peers.json.entry | default([]) | map(attribute='title') | list }}
+
+    - name: Add each Splunk host as a distributed search peer
+      ansible.builtin.uri:
+        url: "https://127.0.0.1:{{ splunkd_port }}/services/search/distributed/peers"
+        method: POST
+        url_username: "{{ splunk_admin_username }}"
+        url_password: "{{ splunk_admin_password }}"
+        force_basic_auth: true
+        # The search head's own default splunkd certificate on loopback.
+        validate_certs: false
+        status_code:
+          - 200
+          - 201
+        body_format: form-urlencoded
+        body:
+          # FQDN-first; never an IP.
+          name: "{{ hostvars[item].hostname }}.{{ splunk_cluster_domain }}:{{ splunkd_port }}"
+          remoteUsername: "{{ splunk_admin_username }}"
+          remotePassword: "{{ splunk_admin_password }}"
+      loop: "{{ groups['splunk'] | default([]) }}"
+      vars:
+        _peer_uri: >-
+          {{ hostvars[item].hostname }}.{{ splunk_cluster_domain }}:{{ splunkd_port }}
+      when: _peer_uri not in _existing_peer_titles
+      register: _peer_add
+      changed_when: _peer_add.status is defined
+      no_log: true
