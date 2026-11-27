@@ -134,6 +134,7 @@
         status_code:
           - 200
           - 201
+        body_format: form-urlencoded
         body:
           # FQDN-first; never an IP.
           name: "{{ hostvars[item].hostname }}.{{ splunk_cluster_domain }}:{{ splunkd_port }}"
