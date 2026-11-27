@@ -62,3 +62,48 @@
           | selectattr('item.role', 'defined')
           | selectattr('item.role', 'equalto', 'mcp_server')
           | list | first | default({'stat': {'exists': false}})).stat.exists | bool }}
+
+# ---------------------------------------------------------------------
+# btool check is the only gate on packaged configuration apps: Splunk
+# ignores an unknown key without an error, so a typo in a retention or
+# path setting would otherwise pass every other check.
+# ---------------------------------------------------------------------
+- name: Check Splunk configuration keys with btool
+  community.docker.docker_container_exec:
+    container: splunk
+    user: root
+    argv:
+      - /bin/bash
+      - -c
+      - /opt/splunk/bin/splunk btool check 2>&1
+  register: splunk_docker_btool_check
+  changed_when: false
+  failed_when: false
+
+# rc is part of the verdict, not just stdout: a btool that failed to run
+# produces no output either, and treating that as "no invalid keys" would
+# be a green light for a check that never examined anything. "No spec
+# file for" lines are warnings (apps may ship conf files without a spec),
+# so only "Invalid key in stanza" lines count as offenses.
+- name: Record Splunk configuration key validity
+  vars:
+    btool_rc: "{{ splunk_docker_btool_check.rc | default(-1) }}"
+    btool_output: "{{ splunk_docker_btool_check.stdout | default('') }}"
+    invalid_key_lines: >-
+      {{ btool_output.splitlines() | select('search', 'Invalid key in stanza') | list }}
+  ansible.builtin.set_fact:
+    validation_results: >-
+      {{ validation_results + [{
+           'check': (
+             'Splunk configuration has invalid keys: '
+             + (invalid_key_lines[0:10] | join('; '))
+             if invalid_key_lines | length > 0
+             else (
+               'Splunk configuration keys UNVERIFIED (btool exited '
+               + (btool_rc | string) + ')'
+               if (btool_rc | int) != 0
+               else 'Splunk configuration keys valid (btool check)'
+             )
+           ),
+           'passed': ((btool_rc | int) == 0) and (invalid_key_lines | length == 0)
+         }] }}
