@@ -107,7 +107,9 @@
     path: "{{ splunkbase_sync_tmpdir }}/history"
     state: directory
     mode: "0700"
-  when: release_history_to_upload | length > 0
+  when:
+    - splunkbase_sync_release_history | bool
+    - release_history_to_upload | length > 0
 
 - name: Download missing versioned Splunkbase and GitHub releases
   ansible.builtin.uri:
@@ -127,6 +129,7 @@
   loop_control:
     label: "{{ item.app_dir }}/{{ item.version }}/{{ item.filename }}"
   register: release_history_download_results
+  when: splunkbase_sync_release_history | bool
 
 - name: Log unavailable versioned releases and continue
   ansible.builtin.debug:
@@ -136,7 +139,9 @@
   loop: "{{ release_history_to_upload | zip(release_history_download_results.results | default([])) | list }}"
   loop_control:
     label: "{{ item.0.app_dir }} v{{ item.0.version }}"
-  when: item.1.status | default(0) in [403, 404]
+  when:
+    - splunkbase_sync_release_history | bool
+    - item.1.status | default(0) in [403, 404]
 
 - name: Upload available versioned releases
   ansible.builtin.command:
@@ -151,7 +156,9 @@
   loop_control:
     label: "{{ item.0.history_key }}"
   changed_when: item.1.status == 200
-  when: item.1.status == 200
+  when:
+    - splunkbase_sync_release_history | bool
+    - item.1.status == 200
 
 - name: Remove temporary versioned release downloads
   ansible.builtin.file:
@@ -160,7 +167,9 @@
   loop: "{{ release_history_to_upload }}"
   loop_control:
     label: "{{ item.history_key }}"
-  when: release_history_to_upload | length > 0
+  when:
+    - splunkbase_sync_release_history | bool
+    - release_history_to_upload | length > 0
 
 - name: Remove downloaded archives from controller tmpdir
   ansible.builtin.file:
@@ -246,7 +255,9 @@
     label: "{{ item }}"
   register: versioned_history_key_queries
   changed_when: false
-  when: splunkbase_manifest_work_required | bool
+  when:
+    - splunkbase_sync_release_history | bool
+    - splunkbase_manifest_work_required | bool
   check_mode: false
   no_log: true
 
@@ -259,13 +270,17 @@
   loop: "{{ versioned_history_key_queries.results | default([]) }}"
   loop_control:
     label: "{{ item.item }}"
-  when: splunkbase_manifest_work_required | bool
+  when:
+    - splunkbase_sync_release_history | bool
+    - splunkbase_manifest_work_required | bool
 
 - name: Initialize the versioned key and release manifest indexes
   ansible.builtin.set_fact:
     versioned_history_object_keys_by_app: []
     splunkbase_history_versions_by_app: []
-  when: splunkbase_manifest_work_required | bool
+  when:
+    - splunkbase_sync_release_history | bool
+    - splunkbase_manifest_work_required | bool
 
 - name: Record versioned object keys for each app directory
   ansible.builtin.set_fact:
@@ -277,7 +292,9 @@
   loop: "{{ versioned_history_key_queries.results | default([]) }}"
   loop_control:
     label: "{{ item.item }}"
-  when: splunkbase_manifest_work_required | bool
+  when:
+    - splunkbase_sync_release_history | bool
+    - splunkbase_manifest_work_required | bool
 
 - name: Derive versions from versioned keys in object storage
   ansible.builtin.set_fact:
@@ -297,7 +314,9 @@
   vars:
     history_object_pattern: "{{ '^' ~ (item.item | regex_escape) ~ '/.+/[^/]+$' }}"
     history_version_pattern: "{{ '^' ~ (item.item | regex_escape) ~ '/(.+)/[^/]+$' }}"
-  when: splunkbase_manifest_work_required | bool
+  when:
+    - splunkbase_sync_release_history | bool
+    - splunkbase_manifest_work_required | bool
 
 - name: Add version lists to the manifest
   ansible.builtin.set_fact:
@@ -309,7 +328,9 @@
   loop: "{{ splunkbase_history_versions_by_app | default([]) }}"
   loop_control:
     label: "{{ item.app_dir }}"
-  when: splunkbase_manifest_work_required | bool
+  when:
+    - splunkbase_sync_release_history | bool
+    - splunkbase_manifest_work_required | bool
 
 - name: Initialize published manifest comparison
   ansible.builtin.set_fact:

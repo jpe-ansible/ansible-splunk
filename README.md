@@ -103,12 +103,14 @@ See [`roles/splunk_docker/files/README.md`](roles/splunk_docker/files/README.md)
 | `deploy_docker.yml` | Deploys Splunk container, assuming Docker is pre-installed |
 | `validate.yml` | Post-deploy validation: ports, HEC, web UI |
 | `configure_indexes.yml` | Index configuration only (idempotent) |
-| `sync-splunkbase.yml` | Mirrors the current Splunkbase package and available Splunkbase/GitHub release history to object storage and publishes the manifest |
+| `sync-splunkbase.yml` | Mirrors current Splunkbase packages, and optionally their release history, to object storage; publishes the manifest |
 
 `sync-splunkbase.yml` keeps the current Splunkbase package at its version-free
-key for the air-gapped host. It also stores each available Splunkbase release
-and each GitHub release asset at `<app_dir>/<version-or-tag>/<filename>`,
-skipping keys that already exist. The manifest keeps its current `version` and
+key for the air-gapped host. The historical release backfill is off by default.
+Enable it with `splunkbase_sync_release_history: true` only once the object
+store has room; it stores each available Splunkbase release and each GitHub
+release asset at `<app_dir>/<version-or-tag>/<filename>`, skipping keys that
+already exist. When enabled, the manifest keeps its current `version` and
 `filename` fields and adds a sorted `releases` list from versioned keys. Latest
 Splunkbase objects carry `channel=latest`, `version`, and `splunkbase_id` tags;
 native S3 bucket versioning remains enabled for the stable key. A release asset
